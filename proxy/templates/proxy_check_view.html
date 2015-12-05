@@ -1,0 +1,58 @@
+{% extends "layout.html" %}
+
+{% block main %}
+<div class="row">
+    <ul class="nav nav-tabs">
+        <li><a href="{% url 'proxies_list' %}">Прокси</a></li>
+        <li class="active"><a href="">Собранные данные</a></li>
+    </ul>
+</div>
+
+<div class="row">
+				<div class="col-md-12">
+					<table class="table">
+					<thead>
+						<th>Прокси</th>
+						<th>Страна</th>
+						<th>Когда проверен</th>
+						<th>В онлайне</th>
+						<th>Анонимность</th>
+					</thead>
+					{% for im in object_list %}
+					<tr {% if im.is_online %}class="success"{% endif %}>
+						<td>{{ im.proxy }}</td>
+						<td>{{ im.proxy.country }}</td>
+						<td>{{ im.when_checked }}</td>
+						<td>{{ im.is_online }}</td>
+						<td>{{ im.anonimity }}</td>
+					</tr>
+					{% endfor %}
+					</table>
+				</div>
+</div>    
+<!--     {% verbatim %}
+			<div class="row">
+				<div class="col-md-12">
+					<h1>{{ test }}</h1>
+				</div>
+			</div>
+	{% endverbatim %} -->
+
+<div class="row" style="padding-bottom: 50px;">
+	{% if is_paginated %}
+        <div class="pagination">
+            <span class="page-links">
+                {% if page_obj.has_previous %}
+                    <a href="{% url 'proxies_checks' %}?page={{ page_obj.previous_page_number }}">previous</a>
+                {% endif %}
+                <span class="page-current">
+                    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}.
+                </span>
+                {% if page_obj.has_next %}
+                    <a href="{% url 'proxies_checks' %}?page={{ page_obj.next_page_number }}">next</a>
+                {% endif %}
+            </span>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

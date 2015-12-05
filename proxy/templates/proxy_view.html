@@ -1,0 +1,46 @@
+{% extends "layout.html" %}
+
+{% block main %}
+<div class="row">
+    <ul class="nav nav-tabs">
+        <li class="active"><a href="#">Прокси</a></li>
+        <li><a href="{% url 'proxies_checks' %}">Собранные данные</a></li>
+    </ul>
+</div>
+
+<div class="row">
+				<div class="col-md-12">
+					<table class="table">
+					<thead>
+						<th>Адрес</th>
+						<th>Порт</th>
+						<th>Страна</th>
+						<th>Когда добавлен</th>
+					</thead>
+					{% for im in object_list %}
+					<tr><td>{{ im.addr }}</td><td>{{ im.port }}</td><td>{{ im.country }}</td><td>{{ im.added }}</td></tr>
+					{% endfor %}
+					</table>
+				</div>
+</div>    
+
+
+<div class="row" style="padding-bottom: 50px;">
+
+	{% if is_paginated %}
+        <div class="pagination">
+            <span class="page-links">
+                {% if page_obj.has_previous %}
+                    <a href="{% url 'proxies_list' %}?page={{ page_obj.previous_page_number }}">previous</a>
+                {% endif %}
+                <span class="page-current">
+                    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}.
+                </span>
+                {% if page_obj.has_next %}
+                    <a href="{% url 'proxies_list' %}?page={{ page_obj.next_page_number }}">next</a>
+                {% endif %}
+            </span>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
