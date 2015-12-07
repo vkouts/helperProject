@@ -9,11 +9,6 @@ import pytesseract
 import os
 import threading
 from django.core.exceptions import MultipleObjectsReturned
-
-try:
-    import Image
-except ImportError:
-    from PIL import Image
 from proxy.my_ocr import MyOCR
 from proxy.models import MyProxy, ProxyCheck
 import datetime
@@ -21,6 +16,12 @@ import urllib, urllib2, socket, time
 import datetime
 import pygeoip
 import re
+
+try:
+    import Image
+except ImportError:
+    from PIL import Image
+
 
 COUNTRIES = {
     'US': 'USA',
@@ -35,7 +36,7 @@ COUNTRIES = {
     'CZ': 'Czech Republic'
 }
 
-ip_check_url = 'http://ipinfo.io/ip'
+IP_CHECK_URL = 'http://ipinfo.io/ip'
 user_agent = 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:12.0) Gecko/20100101 Firefox/12.0'
 socket_timeout = 30
 
@@ -132,24 +133,25 @@ socket.setdefaulttimeout(socket_timeout)
 
 # Get real public IP address
 def get_real_pip():
-    req = urllib2.Request(ip_check_url)
+    req = urllib2.Request(IP_CHECK_URL)
     req.add_header('User-agent', user_agent)
     conn = urllib2.urlopen(req)
     page = conn.read()
     return page.strip()
 
 
-def check_proxy(addr, port, my_real_ip):
+def check_proxy(prox, my_real_ip):
+    proxy_checks = ProxyCheck.objects.filter(proxy=prox)
     if not my_real_ip:
         my_real_ip = get_real_pip()
-    ipaddr = '%s:%s' % (addr, port)
+    ipaddr = '%s:%s' % (prox.addr, prox.port)
     try:
         proxy_handler = urllib2.ProxyHandler({'http': ipaddr})
         opener = urllib2.build_opener(proxy_handler)
         opener.addheaders = [('User-agent', 'Mozilla/5.0')]
         urllib2.install_opener(opener)
         #req=urllib2.Request('http://www.google.com')
-        req = urllib2.Request(ip_check_url)  # change the url address here
+        req = urllib2.Request(IP_CHECK_URL)  # change the url address here
         time_start = time.time()
         sock = urllib2.urlopen(req)
         time_end = time.time()
@@ -157,46 +159,49 @@ def check_proxy(addr, port, my_real_ip):
         anonimity = False if detected_ip == my_real_ip else True
     except urllib2.HTTPError, e:
         print 'Error code: ', e.code
-        return False, False, 0
+
+        res, anon, timediff = False, False, 0
     except Exception, detail:
         print "ERROR:", detail
-        return False, False, 0
-    return True, anonimity, time_end - time_start
+        res, anon, timediff = False, False, 0
+    res, anon, timediff = True, anonimity, time_end - time_start
+    if res:
+        my_chk = ProxyCheck.objects.create(
+            proxy=prox,
+            is_online=True,
+            anonimity=anon,
+            timediff=timediff,
+            when_checked=datetime.datetime.now()
+        )
+        my_chk.save()
+        prox.checked = True
+        prox.save()
+        print u'%s:%s рабочий' % (prox.addr, prox.port)
+    else:
+        my_chk = ProxyCheck.objects.create(
+            proxy=prox,
+            is_online=False,
+            anonimity=False,
+            timediff=0.0,
+            when_checked=datetime.datetime.now()
+        )
+        my_chk.save()
+        prox.checked = True
+        prox.save()
+        print u'%s:%s нерабочий' % (prox.addr, prox.port)
+
+    if proxy_checks.count() == proxy_checks.filter(is_online=False) and proxy_checks.count() >= 2:
+        prox.enabled = False
+        prox.save()
 
 
 def check_my_proxyes():
     my_real_ip = get_real_pip()
     for im in MyProxy.objects.filter(enabled=True):
-        proxy_checks = ProxyCheck.objects.filter(proxy=im)
-        res, anon, timediff = check_proxy(im.addr, im.port, my_real_ip)
-        if res:
-            my_chk = ProxyCheck.objects.create(
-                proxy=im,
-                is_online=True,
-                anonimity=anon,
-                timediff=timediff,
-                when_checked=datetime.datetime.now()
-            )
-            my_chk.save()
-            im.checked = True
-            im.save()
-            print u'%s:%s рабочий' % (im.addr, im.port)
-        else:
-            my_chk = ProxyCheck.objects.create(
-                proxy=im,
-                is_online=False,
-                anonimity=False,
-                timediff=0.0,
-                when_checked=datetime.datetime.now()
-            )
-            my_chk.save()
-            im.checked = True
-            im.save()
-            print u'%s:%s нерабочий' % (im.addr, im.port)
+        t = threading.Thread(check_proxy, args=(im, my_real_ip))
+        t.start()
 
-        if proxy_checks.count() == proxy_checks.filter(is_online=False) and proxy_checks.count() >= 2:
-            im.enabled = False
-            im.save()
+
 
 
 def textproxy_parse(myfile):
@@ -252,7 +257,7 @@ class Command(BaseCommand):
         my_real_ip = get_real_pip()
         print my_real_ip
         #hideme_parse()
-        #foxtools_parse()
+        foxtools_parse()
         check_my_proxyes()
 
     #textproxy_parse(os.path.join('.', 'proxy', 'import', 'proxylist_at_10.07.2015.txt'))
